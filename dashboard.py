@@ -14,6 +14,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import warnings
+from io import BytesIO
 warnings.filterwarnings('ignore')
 
 # ── Page config ────────────────────────────────────────────────────────────
@@ -344,158 +345,30 @@ def new_fig(layout='top'):
     return fig, ax
 
 def render(fig):
-    st.pyplot(fig, use_container_width=True)
+    buf = BytesIO()
+    fig.savefig(
+        buf,
+        format='png',
+        dpi=110,
+        bbox_inches=None,
+        facecolor=fig.get_facecolor()
+    )
+    buf.seek(0)
+    st.image(buf, use_container_width=True)
     plt.close(fig)
 
 # ── ROW 1 ──────────────────────────────────────────────────────────────────
 la, lb, lc = st.columns(3)
-la.markdown("### National Disease Burden")
-lb.markdown(f"### Top States — Highest Disease")
-lc.markdown(f"### Top States — Second Highest Disease")
+la.markdown("### Trends 2019–2022")
+lb.markdown("### National Disease Burden")
+lc.markdown("### Top States — Highest Disease")
 
 col1, col2, col3 = st.columns(3)
 
-# Chart 1 — National Burden
+# Chart 1 — Trends
 with col1:
-    by_topic = overall_yr.groupby('Topic')['DataValue'].mean().dropna()
-    labels, vals = [], []
-    for k, v in topics_map.items():
-        if k in by_topic.index:
-            labels.append(v)
-            vals.append(round(by_topic[k], 1))
-
-    if vals:
-        order = np.argsort(vals)
-        labels = [labels[i] for i in order]
-        vals = [vals[i] for i in order]
-        colors = [ACC3 if v == max(vals) else ACC1 for v in vals]
-
-        fig, ax = new_fig(layout='top_burden')
-        ax.barh(labels, vals, color=colors, height=0.55, zorder=2)
-        x_pad = max(vals) * 0.12
-        label_offset = max(vals) * 0.015
-        ax.set_xlim(0, max(vals) + x_pad)
-        ax.set_xlabel('Crude Prevalence (%)', color=LABEL, fontsize=7)
-        ax.set_ylabel('Disease', color=LABEL, fontsize=7)
-        ax.set_title(f'National Burden ({selected_year})', color=TEXT, fontsize=8, fontweight='bold', pad=5)
-        ax.tick_params(labelsize=7, colors = LABEL)
-        ax.grid(False)
-        for bar, val in zip(ax.patches, vals):
-            ax.text(val + label_offset, bar.get_y() + bar.get_height()/2,
-                    f'{val}%', va='center', color=TEXT, fontsize=6)
-        render(fig)
-
-# Chart 2 — Top States for Top Disease 1
-with col2:
-    d1 = df[
-        (df['Topic'] == top1_topic) &
-        (df['Stratification1'] == 'Overall') &
-        (df['DataValueType'] == 'Crude Prevalence') &
-        (df['YearStart'] == selected_year)
-    ]
-    top_s = (
-        d1.groupby('LocationDesc')['DataValue']
-        .mean()
-        .dropna()
-        .sort_values(ascending=False)
-    )
-    top_s = top_s[~top_s.index.isin(EXCL)].head(8)
-
-    if not top_s.empty:
-        fig, ax = new_fig(layout='top')
-        clrs = [ACC3 if i == 0 else ACC1 for i in range(len(top_s))]
-        ax.bar(top_s.index, top_s.values, color=clrs, width=0.6, zorder=2)
-        y_pad = max(top_s.values) * 0.10
-        label_offset = max(top_s.values) * 0.02
-        ax.set_ylim(0, max(top_s.values) + y_pad)
-        ax.set_ylabel('Prevalence (%)', color=LABEL, fontsize=7)
-        ax.set_title(f'Top 8 States — {top1_label} ({selected_year})', color=TEXT, fontsize=8, fontweight='bold', pad=5)
-        ax.set_xlabel('State', color=LABEL, fontsize=7)
-        ax.tick_params(axis='x', labelsize=5.8, colors = LABEL)
-        ax.tick_params(axis='y', labelsize=7, colors = LABEL)
-        plt.setp(ax.get_xticklabels(), rotation=0, ha='center')
-        ax.grid(False)
-        for bar, val in zip(ax.patches, top_s.values):
-            ax.text(bar.get_x() + bar.get_width()/2, val + label_offset,
-                    f'{val:.1f}%', ha='center', color=TEXT, fontsize=6)
-        render(fig)
-
-# Chart 3 — Top States for Top Disease 2
-with col3:
-    d2 = df[
-        (df['Topic'] == top2_topic) &
-        (df['Stratification1'] == 'Overall') &
-        (df['DataValueType'] == 'Crude Prevalence') &
-        (df['YearStart'] == selected_year)
-    ]
-    cs = (
-        d2.groupby('LocationDesc')['DataValue']
-        .mean()
-        .dropna()
-        .sort_values(ascending=False)
-    )
-    cs = cs[~cs.index.isin(EXCL)].head(8)
-
-    if not cs.empty:
-        fig, ax = new_fig(layout='top')
-        clrs = [ACC3 if i == 0 else ACC1 for i in range(len(cs))]
-        ax.bar(cs.index, cs.values, color=clrs, width=0.6, zorder=2)
-        y_pad = max(cs.values) * 0.10
-        label_offset = max(cs.values) * 0.02
-        ax.set_ylim(0, max(cs.values) + y_pad)
-        ax.set_ylabel('Prevalence (%)', color=LABEL, fontsize=7)
-        ax.set_title(f'Top 8 States — {top2_label} ({selected_year})', color=TEXT, fontsize=8, fontweight='bold', pad=5)
-        ax.set_xlabel('State', color=VALUE, fontsize=7)
-        ax.tick_params(axis='x', labelsize=5.8, colors = LABEL)
-        ax.tick_params(axis='y', labelsize=7, colors = LABEL)
-        plt.setp(ax.get_xticklabels(), rotation=0, ha='center')
-        ax.grid(False)
-        for bar, val in zip(ax.patches, cs.values):
-            ax.text(bar.get_x() + bar.get_width()/2, val + label_offset,
-                    f'{val:.1f}%', ha='center', color=TEXT, fontsize=6)
-        render(fig)
-
-st.markdown("<hr>", unsafe_allow_html=True)
-
-# ── ROW 2 ──────────────────────────────────────────────────────────────────
-ld, lf, lg = st.columns([2.5, 2.5, 1.0])
-ld.markdown("### Trends 2019–2022")
-lf.markdown("### Disease by Race/Ethnicity")
-lg.markdown("### Filters")
-
-col6, col4, colf = st.columns([2.5, 2.5, 1.0])
-
-# filter panel on the right
-with colf:
-    fc1, fc2 = st.columns(2)
-
-    with fc1:
-        st.markdown("<div class='filter-title'>Trend Diseases</div>", unsafe_allow_html=True)
-        for topic in trend_topics_available:
-            st.checkbox(
-                topic_label(topic),
-                key=f"trend_chk_{topic}",
-                on_change=sync_trend_filters,
-                args=(trend_topics_available,)
-            )
-
-    with fc2:
-        st.markdown("<div class='filter-title'>Race/Ethnicity</div>", unsafe_allow_html=True)
-        for topic in race_topics_available:
-            st.checkbox(
-                topic_label(topic),
-                key=f"race_chk_{topic}",
-                on_change=set_single_race_filter,
-                args=(topic, race_topics_available)
-            )
-
-selected_trend_topics = st.session_state['trend_topics_filter']
-selected_race_topic = st.session_state['race_topic_filter']
-
-# Chart 4 — Trends
-with col4:
-    fig, ax = new_fig(layout='bottom')
-    for i, topic in enumerate(selected_trend_topics):
+    fig, ax = new_fig(layout='top_burden')
+    for i, topic in enumerate(st.session_state['trend_topics_filter']):
         td = df[
             (df['Topic'] == topic) &
             (df['Stratification1'] == 'Overall') &
@@ -522,7 +395,7 @@ with col4:
     ax.grid(False)
     ax.set_xlim(2019, 2022)
     ax.set_xticks([2019, 2020, 2021, 2022])
-    if selected_trend_topics:
+    if st.session_state['trend_topics_filter']:
         ax.legend(
             facecolor=CARD,
             edgecolor=CARD,
@@ -534,14 +407,124 @@ with col4:
         )
     render(fig)
 
+# Chart 2 — National Burden
+with col2:
+    by_topic = overall_yr.groupby('Topic')['DataValue'].mean().dropna()
+    labels, vals = [], []
+    for k, v in topics_map.items():
+        if k in by_topic.index:
+            labels.append(v)
+            vals.append(round(by_topic[k], 1))
+
+    if vals:
+        order = np.argsort(vals)
+        labels = [labels[i] for i in order]
+        vals = [vals[i] for i in order]
+        colors = [ACC3 if v == max(vals) else ACC1 for v in vals]
+
+        fig, ax = new_fig(layout='top_burden')
+        ax.barh(labels, vals, color=colors, height=0.55, zorder=2)
+        x_pad = max(vals) * 0.12
+        label_offset = max(vals) * 0.015
+        ax.set_xlim(0, max(vals) + x_pad)
+        ax.set_xlabel('Crude Prevalence (%)', color=LABEL, fontsize=7)
+        ax.set_ylabel('Disease', color=LABEL, fontsize=7)
+        ax.set_title(f'National Burden ({selected_year})', color=TEXT, fontsize=8, fontweight='bold', pad=5)
+        ax.tick_params(labelsize=7, colors=LABEL)
+        ax.grid(False)
+        for bar, val in zip(ax.patches, vals):
+            ax.text(val + label_offset, bar.get_y() + bar.get_height()/2,
+                    f'{val}%', va='center', color=TEXT, fontsize=6)
+        render(fig)
+
+# Chart 3 — Top States for Top Disease 1
+with col3:
+    d1 = df[
+        (df['Topic'] == top1_topic) &
+        (df['Stratification1'] == 'Overall') &
+        (df['DataValueType'] == 'Crude Prevalence') &
+        (df['YearStart'] == selected_year)
+    ]
+    top_s = (
+        d1.groupby('LocationDesc')['DataValue']
+        .mean()
+        .dropna()
+        .sort_values(ascending=False)
+    )
+    top_s = top_s[~top_s.index.isin(EXCL)].head(8)
+
+    if not top_s.empty:
+        fig, ax = new_fig(layout='top_burden')
+        clrs = [ACC3 if i == 0 else ACC1 for i in range(len(top_s))]
+        ax.bar(top_s.index, top_s.values, color=clrs, width=0.6, zorder=2)
+        y_pad = max(top_s.values) * 0.10
+        label_offset = max(top_s.values) * 0.02
+        ax.set_ylim(0, max(top_s.values) + y_pad)
+        ax.set_ylabel('Prevalence (%)', color=LABEL, fontsize=7)
+        ax.set_title(f'Top 8 States — {top1_label} ({selected_year})', color=TEXT, fontsize=8, fontweight='bold', pad=5)
+        ax.set_xlabel('State', color=LABEL, fontsize=7)
+        ax.tick_params(axis='x', labelsize=5.8, colors=LABEL)
+        ax.tick_params(axis='y', labelsize=7, colors=LABEL)
+        plt.setp(ax.get_xticklabels(), rotation=0, ha='center')
+        ax.grid(False)
+        for bar, val in zip(ax.patches, top_s.values):
+            ax.text(bar.get_x() + bar.get_width()/2, val + label_offset,
+                    f'{val:.1f}%', ha='center', color=TEXT, fontsize=6)
+        render(fig)
+
+st.markdown("<hr>", unsafe_allow_html=True)
+
+# ── ROW 2 ──────────────────────────────────────────────────────────────────
+ld, lf, lg = st.columns([2.5, 2.5, 1.0])
+ld.markdown("### Top States — Second Highest Disease")
+lf.markdown("### Disease by Race/Ethnicity")
+lg.markdown("### Filters")
+
+col4, col6, colf = st.columns([2.5, 2.5, 1.0])
+
+# Chart 4 — Top States for Top Disease 2
+with col4:
+    d2 = df[
+        (df['Topic'] == top2_topic) &
+        (df['Stratification1'] == 'Overall') &
+        (df['DataValueType'] == 'Crude Prevalence') &
+        (df['YearStart'] == selected_year)
+    ]
+    cs = (
+        d2.groupby('LocationDesc')['DataValue']
+        .mean()
+        .dropna()
+        .sort_values(ascending=False)
+    )
+    cs = cs[~cs.index.isin(EXCL)].head(8)
+
+    if not cs.empty:
+        fig, ax = new_fig(layout='bottom')
+        clrs = [ACC3 if i == 0 else ACC1 for i in range(len(cs))]
+        ax.bar(cs.index, cs.values, color=clrs, width=0.6, zorder=2)
+        y_pad = max(cs.values) * 0.10
+        label_offset = max(cs.values) * 0.02
+        ax.set_ylim(0, max(cs.values) + y_pad)
+        ax.set_ylabel('Prevalence (%)', color=LABEL, fontsize=7)
+        ax.set_title(f'Top 8 States — {top2_label} ({selected_year})', color=TEXT, fontsize=8, fontweight='bold', pad=5)
+        ax.set_xlabel('State', color=VALUE, fontsize=7)
+        ax.tick_params(axis='x', labelsize=5.8, colors=LABEL)
+        ax.tick_params(axis='y', labelsize=7, colors=LABEL)
+        plt.setp(ax.get_xticklabels(), rotation=0, ha='center')
+        ax.grid(False)
+        for bar, val in zip(ax.patches, cs.values):
+            ax.text(bar.get_x() + bar.get_width()/2, val + label_offset,
+                    f'{val:.1f}%', ha='center', color=TEXT, fontsize=6)
+        render(fig)
+
 # Chart 5 — Disease by Race/Ethnicity
 with col6:
     race = df[
-        (df['Topic'] == selected_race_topic) &
+        (df['Topic'] == st.session_state['race_topic_filter']) &
         (df['StratificationCategory1'] == 'Race/Ethnicity') &
         (df['DataValueType'] == 'Crude Prevalence') &
         (df['YearStart'] == selected_year)
-    ] if selected_race_topic else pd.DataFrame()
+    ] if st.session_state['race_topic_filter'] else pd.DataFrame()
 
     race_g = (
         race.groupby('Stratification1')['DataValue']
@@ -569,7 +552,7 @@ with col6:
         ax.invert_yaxis()
         ax.set_xlabel('Crude Prevalence (%)', color=LABEL, fontsize=7)
         ax.set_ylabel('Race/Ethnicity', color=LABEL, fontsize=7)
-        ax.set_title(f'{topic_label(selected_race_topic)} by Race/Ethnicity ({selected_year})', color=TEXT, fontsize=8, fontweight='bold', pad=5)
+        ax.set_title(f'{topic_label(st.session_state["race_topic_filter"])} by Race/Ethnicity ({selected_year})', color=TEXT, fontsize=8, fontweight='bold', pad=5)
         ax.grid(False)
         x_pad = max(vals) * 0.14
         label_offset = max(vals) * 0.02
@@ -579,6 +562,30 @@ with col6:
             ax.text(x + label_offset, yy, f'{x:.1f}%', va='center', color=VALUE, fontsize=6)
 
         render(fig)
+
+# filter panel on the right
+with colf:
+    fc1, fc2 = st.columns(2)
+
+    with fc1:
+        st.markdown("<div class='filter-title'>Trend Diseases</div>", unsafe_allow_html=True)
+        for topic in trend_topics_available:
+            st.checkbox(
+                topic_label(topic),
+                key=f"trend_chk_{topic}",
+                on_change=sync_trend_filters,
+                args=(trend_topics_available,)
+            )
+
+    with fc2:
+        st.markdown("<div class='filter-title'>Race/Ethnicity</div>", unsafe_allow_html=True)
+        for topic in race_topics_available:
+            st.checkbox(
+                topic_label(topic),
+                key=f"race_chk_{topic}",
+                on_change=set_single_race_filter,
+                args=(topic, race_topics_available)
+            )
 
 # ── Footer ─────────────────────────────────────────────────────────────────
 st.markdown(
